@@ -44,7 +44,7 @@ handle_info({refresh_graph}, _Graph) ->
 format_number(Number) when is_integer(Number) ->
   Number;
 format_number(Number) when is_float(Number) ->
-  io_lib:format("~.8f", [Number]).
+  io_lib:format("~.32f", [Number]).
 
 build_graph() ->
   io:format("[~p] Building graph~n", [self()]),
