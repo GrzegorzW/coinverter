@@ -1,0 +1,17 @@
+{application, coinverter, [
+  {description, "Coinverter"},
+  {vsn, "1.0.0"},
+  {registered, []},
+  {mod, {coinverter_app, []}},
+  {applications, [
+    kernel,
+    stdlib,
+    gun,
+    jiffy
+  ]},
+  {env, []},
+  {modules, []},
+  {maintainers, []},
+  {licenses, ["Apache 2.0"]},
+  {links, []}
+]}.
