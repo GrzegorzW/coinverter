@@ -88,7 +88,8 @@ get_products() ->
 add_pair(Graph, {V1, V2, Price}) ->
   digraph:add_vertex(Graph, V1),
   digraph:add_vertex(Graph, V2),
-  digraph:add_edge(Graph, V1, V2, Price).
+  digraph:add_edge(Graph, V1, V2, Price),
+  digraph:add_edge(Graph, V2, V1, 1 / Price).
 
 convert_pair(Graph, {Source, Target, Amount}) ->
   case digraph:get_short_path(Graph, Source, Target) of
