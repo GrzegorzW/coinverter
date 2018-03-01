@@ -19,15 +19,15 @@ init([]) ->
   {ok, Graph}.
 
 convert(Source, Target, Amount) when is_binary(Source) and is_binary(Target) ->
-  gen_server:cast(?MODULE, {convert, self(), Source, Target, Amount}).
+  gen_server:cast(?MODULE, {convert, self(), Source, Target, decimal_conv:number(Amount)}).
 
 handle_cast({convert, From, Source, Target, Amount}, Graph) ->
   spawn(
     fun() ->
       try convert_pair(Graph, {Source, Target, Amount}) of
-        {ok, Result} -> From ! {ok, format_number(Result)}
+        {ok, Result} -> From ! {ok, Result}
       catch
-        _:Reason -> From ! {error, Reason}
+        throw:Reason -> From ! {error, Reason}
       end
     end
   ),
@@ -40,11 +40,6 @@ handle_call({}, _From, Graph) ->
 handle_info({refresh_graph}, _Graph) ->
   io:format("[~p] Refreshing graph~n", [self()]),
   {noreply, build_graph()}.
-
-format_number(Number) when is_integer(Number) ->
-  Number;
-format_number(Number) when is_float(Number) ->
-  io_lib:format("~.32f", [Number]).
 
 build_graph() ->
   io:format("[~p] Building graph~n", [self()]),
@@ -63,10 +58,11 @@ build_graph([_Product = #{<<"price">> := Price, <<"product_id">> := ProductId} |
 
 bin_to_num(Bin) ->
   N = binary_to_list(Bin),
-  case string:to_float(N) of
-    {error, no_float} -> list_to_integer(N);
-    {F, _Rest} -> F
-  end.
+  Num = case string:to_float(N) of
+          {error, no_float} -> list_to_integer(N);
+          {F, _Rest} -> F
+        end,
+  decimal_conv:number(Num).
 
 get_products() ->
   {ok, Connection} = gun:open("api.abucoins.com", 443),
@@ -89,20 +85,21 @@ add_pair(Graph, {V1, V2, Price}) ->
   digraph:add_vertex(Graph, V1),
   digraph:add_vertex(Graph, V2),
   digraph:add_edge(Graph, V1, V2, Price),
-  digraph:add_edge(Graph, V2, V1, 1 / Price).
+  digraph:add_edge(Graph, V2, V1, decimal_arith:divide(decimal_conv:number(1), Price, [{precision, 32}])).
 
 convert_pair(Graph, {Source, Target, Amount}) ->
   case digraph:get_short_path(Graph, Source, Target) of
     false -> throw(path_not_found);
     Path ->
-      Result = Amount * convert_path(Graph, Path, 1),
+      Result = decimal_arith:multiply(Amount, convert_path(Graph, Path, decimal_conv:number(1)), [{precision, 32}]),
       {ok, Result}
   end.
 
 convert_path(_Graph, [_], Multiplier) ->
   Multiplier;
 convert_path(Graph, [V1, V2 | Rest], Multiplier) ->
-  convert_path(Graph, [V2 | Rest], Multiplier * get_price(Graph, {V1, V2})).
+  NewMultiplier = decimal_arith:multiply(Multiplier, get_price(Graph, {V1, V2}), [{precision, 32}]),
+  convert_path(Graph, [V2 | Rest], NewMultiplier).
 
 get_price(Graph, {EmanatingVertex, IncidentVertex}) ->
   get_price(Graph, EmanatingVertex, digraph:in_edges(Graph, IncidentVertex)).
